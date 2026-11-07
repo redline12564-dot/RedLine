@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { MapPin, Phone, Mail, Clock, Send, Loader2, MessageSquare, User, AtSign, Tag, MessageCircle, ShieldCheck } from "lucide-react";
-import { FaWhatsapp } from "react-icons/fa6";
+import { MapPin, Phone, Mail, Clock, Send, Loader2, MessageSquare, User, Tag, MessageCircle, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,11 +29,11 @@ const EMAILS = [
   { labelKey: "contact.emailGeneral", valueKey: "contact.emailGeneralVal", href: "mailto:info@redline.eg" },
 ];
 
-const INFO_SECTIONS = [
-  { icon: MapPin, titleKey: "contact.address", entries: ADDRESSES, type: "address" as const },
-  { icon: Phone, titleKey: "contact.phoneLabel", entries: PHONES, type: "link" as const },
-  { icon: Mail, titleKey: "contact.emailLabel", entries: EMAILS, type: "link" as const },
-];
+// قاموس ترجمة إنجليزية للعناوين الشهيرة في حال لم يُدخلها المشرف بالإنجليزية
+const KNOWN_EN_ADDRESSES: Record<string, string> = {
+  "15 شارع عوف الخالدين النزهة الجديدة القاهرة": "15 Ouf El-Khaledeen St., New Nozha, Cairo",
+  "15 شارع عوف الخالدين النزهة الجديدة": "15 Ouf El-Khaledeen St., New Nozha, Cairo",
+};
 
 export function Contact() {
   const { t, isAr } = useT();
@@ -42,7 +41,6 @@ export function Contact() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Fetch section content from /api/site for DB-managed bilingual heading
   const { data: siteData } = useQuery({
     queryKey: ["site-data"],
     queryFn: () => apiGet<any>("/api/site"),
@@ -51,7 +49,8 @@ export function Contact() {
   const eyebrow = isAr ? (sc?.badgeAr || t("contact.eyebrow")) : (sc?.badgeEn || t("contact.eyebrow"));
   const title = isAr ? (sc?.titleAr || t("contact.title")) : (sc?.titleEn || t("contact.title"));
   const subtitle = isAr ? (sc?.descriptionAr || t("contact.subtitle")) : (sc?.descriptionEn || t("contact.subtitle"));
-    const { data: infoData } = useQuery({
+
+  const { data: infoData } = useQuery({
     queryKey: ["contact-info"],
     queryFn: () => apiGet<{ items: any[] }>("/api/contact-info"),
   });
@@ -60,14 +59,21 @@ export function Contact() {
   const fromDb = (type: string, fallback: any[]) => {
     const rows = dbItems.filter((i) => i.type === type);
     if (rows.length === 0) return fallback;
-        return rows.map((r) => {
-      const v = (r.value || "").trim();
+
+    return rows.map((r) => {
+      const vAr = (r.value || "").trim();
+      const vEn = (r.valueEn || "").trim();
       let href: string | undefined;
-      if (type === "phone") href = `tel:${v.replace(/[^\d+]/g, "")}`;
-      else if (type === "email") href = `mailto:${v}`;
+
+      if (type === "phone") href = `tel:${vAr.replace(/[^\d+]/g, "")}`;
+      else if (type === "email") href = `mailto:${vAr}`;
+
+      // اختيار القيمة المعروضة بحسب اللغة
+      let displayVal = isAr ? vAr : (vEn || KNOWN_EN_ADDRESSES[vAr] || vAr);
+
       return {
-        label: isAr ? r.labelAr : r.labelEn,
-        value: v,
+        label: isAr ? (r.labelAr || r.label) : (r.labelEn || r.label),
+        value: displayVal,
         href,
       };
     });
@@ -78,15 +84,6 @@ export function Contact() {
     { icon: Phone, titleKey: "contact.phoneLabel", entries: fromDb("phone", PHONES), type: "link" as const },
     { icon: Mail, titleKey: "contact.emailLabel", entries: fromDb("email", EMAILS), type: "link" as const },
   ];
-
-  const firstPhone = dbItems.find((i) => i.type === "phone");
-  const firstEmail = dbItems.find((i) => i.type === "email");
-    const clean = (s: string) => (s || "").replace(/[^\d+]/g, "");
-  const callHref = firstPhone ? `tel:${clean(firstPhone.value)}` : "tel:19999";
-  const waHref = firstPhone
-    ? `https://wa.me/${clean(firstPhone.value).replace(/^\+/, "").replace(/^0/, "20")}`
-    : "https://wa.me/201000000000";
-  const mailHref = firstEmail ? `mailto:${(firstEmail.value || "").trim()}` : "mailto:info@redline.eg";
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -115,7 +112,6 @@ export function Contact() {
 
   return (
     <section id="contact" className="py-16 sm:py-24 lg:py-32 relative overflow-hidden">
-      {/* Ambient background glows */}
       <div className="absolute top-1/4 start-0 w-[500px] h-[500px] bg-primary/8 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-1/4 end-0 w-[400px] h-[400px] bg-amber-500/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute inset-0 grid-bg opacity-[0.03] pointer-events-none" />
@@ -136,9 +132,7 @@ export function Contact() {
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="relative rounded-[1.75rem] border border-border/40 bg-card/80 backdrop-blur-sm p-8 sm:p-10 shadow-elevated overflow-hidden"
           >
-            {/* Top gradient accent bar */}
             <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-primary via-red-600 to-amber-500" />
-            {/* Inner glow on top */}
             <div className="absolute -top-20 inset-x-0 h-40 bg-gradient-to-b from-primary/8 to-transparent pointer-events-none" />
 
             <div className="relative">
@@ -226,7 +220,7 @@ export function Contact() {
                   </div>
                 </div>
 
-                {/* Field: Message (full width) */}
+                {/* Field: Message */}
                 <div className="flex flex-col gap-2 text-start sm:col-span-2">
                   <Label className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">
                     {t("contact.message")} <span className="text-primary">*</span>
@@ -245,7 +239,7 @@ export function Contact() {
                 </div>
               </div>
 
-              {/* Submit + trust signal */}
+              {/* Submit Button */}
               <div className="mt-7 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground order-2 sm:order-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
@@ -276,16 +270,13 @@ export function Contact() {
               background: "radial-gradient(circle at 30% 20%, oklch(0.5 0.22 28), oklch(0.38 0.16 18) 60%, oklch(0.28 0.10 12))",
             }}
           >
-            {/* Decorative layers */}
             <div className="absolute top-0 end-0 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl animate-aurora" />
             <div className="absolute bottom-0 start-0 w-56 h-56 bg-red-500/15 rounded-full blur-3xl" />
             <div className="absolute inset-0 noise opacity-[0.08]" />
             <div className="absolute inset-0 grid-bg opacity-[0.04]" />
-            {/* Top gold accent line */}
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
 
             <div className="relative p-8 sm:p-10 text-[#f9fafb]">
-              {/* Header row */}
               <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
                 <div>
                   <Image
@@ -297,7 +288,7 @@ export function Contact() {
                   />
                   <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-1">{t("contact.direct")}</h3>
                   <p className="text-white/60 text-sm leading-relaxed max-w-md">{t("contact.directDesc")}</p>
-                                </div>
+                </div>
               </div>
 
               {/* Info sections grid */}
@@ -322,13 +313,17 @@ export function Contact() {
                       <div className="space-y-3">
                         {section.entries.map((entry: any, i: number) => (
                           <div key={i}>
-                            <div className="text-[10px] uppercase tracking-wider text-white/40 font-medium mb-1">{entry.label ?? t(entry.labelKey)}</div>
+                            <div className="text-[10px] uppercase tracking-wider text-white/40 font-medium mb-1">
+                              {entry.label ?? (entry.labelKey ? t(entry.labelKey) : "")}
+                            </div>
                             {section.type === "link" ? (
                               <a href={entry.href} className="text-xs sm:text-sm font-semibold text-white/90 hover:text-amber-300 transition-colors font-mono block max-w-full [overflow-wrap:anywhere]" dir="ltr">
-                                {entry.value ?? t(entry.valueKey)}
+                                {entry.value ?? (entry.valueKey ? t(entry.valueKey) : "")}
                               </a>
                             ) : (
-                              <div className="text-sm font-semibold text-white/90 leading-snug">{entry.value ?? t(entry.valueKey)}</div>
+                              <div className="text-sm font-semibold text-white/90 leading-snug">
+                                {entry.value ?? (entry.valueKey ? t(entry.valueKey) : "")}
+                              </div>
                             )}
                           </div>
                         ))}
